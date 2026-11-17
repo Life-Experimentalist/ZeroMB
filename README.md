@@ -1,4 +1,4 @@
-﻿# ZeroMB
+# ZeroMB
 
 Recharge a mobile data pack when you have 0 MB of data left.
 

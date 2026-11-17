@@ -1,4 +1,4 @@
-﻿{
+{
   "expo": {
     "name": "ZeroMB",
     "slug": "zeromb",
@@ -23,6 +23,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d5227454-d4b4-44d4-88c8-e22501a4edcc"
+      }
+    },
+    "owner": "vkrishna04"
   }
 }
