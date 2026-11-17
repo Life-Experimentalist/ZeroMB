@@ -40,7 +40,7 @@ EAS prints a download link for the `.apk` when it finishes. Copy it to your phon
 
 ## Things to check before relying on it
 
-- The 123PAY menu digits (`2`, `1`, number, amount) are unverified. If the first call lands on the wrong menu, change the sequence under "advanced: dial sequence" in the app. Each comma is about a two second pause.
+- The call goes: wait for the language menu, press the English key, wait for the main menu, press the Mobile Recharge key, then your number and the amount. The keys (English `3`, Mobile Recharge `2`) and the waiting speed are editable under "call setup" in the app. A key pressed while the voice is still speaking can pick the wrong language or option, so use Slow if the app presses too early. Do not press anything yourself during the call.
 - Pack prices and the USSD backup codes (`*567*3#`, `*111*6#`, `*124*2#`) change over time. Confirm with your operator.
 - Some dialer apps ignore pause commas. If yours does, dial `080 4516 3666` by hand and use the keypad.
 - The first time, call 123PAY once from the app and say your bank name so NPCI knows which account to use.

@@ -3,19 +3,24 @@ import {
   Alert,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Clipboard from 'expo-clipboard';
+
+const RS = '₹';
+const CROSS = '✕';
+const DOT = '•';
 
 type Carrier = 'JIO' | 'AIRTEL' | 'VI' | 'BSNL';
+type Speed = 'fast' | 'normal' | 'slow';
 
 interface DataPlan {
   id: string;
@@ -25,138 +30,177 @@ interface DataPlan {
   isCustom?: boolean;
 }
 
+interface Settings {
+  phone: string;
+  carrier: Carrier;
+  setupDone: boolean;
+  langKey: string; // key that picks English in the first voice menu ('' to skip)
+  menuKey: string; // key for mobile recharge in the main menu
+  speed: Speed;
+}
+
 const CARRIERS: Carrier[] = ['JIO', 'AIRTEL', 'VI', 'BSNL'];
+const CARRIER_COLOR: Record<Carrier, string> = {
+  JIO: '#3B82F6',
+  AIRTEL: '#EF4444',
+  VI: '#F59E0B',
+  BSNL: '#10B981',
+};
 
 const NPCI_NUMBER = '08045163666';
-const DEFAULT_TEMPLATE = `${NPCI_NUMBER},,,2,,,1,,,{PHONE}#,,,{AMOUNT}#`;
 
-const DEFAULT_DATA_PLANS: DataPlan[] = [
-  { id: 'j1', carrier: 'JIO', amount: '11', label: '10GB Data Booster (1 Hr)' },
-  { id: 'j2', carrier: 'JIO', amount: '15', label: 'Unlimited 5G Booster (1 Day)' },
-  { id: 'j3', carrier: 'JIO', amount: '19', label: '1GB Data Booster' },
-  { id: 'j4', carrier: 'JIO', amount: '29', label: '2GB Data Booster' },
-  { id: 'j5', carrier: 'JIO', amount: '49', label: '25GB Data Booster (1 Day)' },
-  { id: 'a1', carrier: 'AIRTEL', amount: '22', label: '1GB Data Pack (1 Day)' },
-  { id: 'a2', carrier: 'AIRTEL', amount: '26', label: '1.5GB Data Pack (1 Day)' },
-  { id: 'a3', carrier: 'AIRTEL', amount: '33', label: '2GB Data Pack (1 Day)' },
-  { id: 'a4', carrier: 'AIRTEL', amount: '49', label: '20GB Data Pack (1 Day)' },
-  { id: 'v1', carrier: 'VI', amount: '23', label: '1GB Data Pack (1 Day)' },
-  { id: 'v2', carrier: 'VI', amount: '26', label: '1.5GB Data Pack (1 Day)' },
-  { id: 'v3', carrier: 'VI', amount: '33', label: '2GB Data Pack' },
-  { id: 'v4', carrier: 'VI', amount: '49', label: '20GB Data Pack (1 Day)' },
-  { id: 'b1', carrier: 'BSNL', amount: '16', label: '2GB Data Pack (1 Day)' },
-  { id: 'b2', carrier: 'BSNL', amount: '19', label: '2GB Data Pack (1 Day)' },
-  { id: 'b3', carrier: 'BSNL', amount: '49', label: '10GB Data Pack' },
+// Each comma is a pause of about two seconds on Android dialers.
+// Order: before language key, before menu key, before number, before amount.
+const WAITS: Record<Speed, [number, number, number, number]> = {
+  fast: [2, 1, 1, 1],
+  normal: [3, 2, 2, 2],
+  slow: [5, 3, 3, 3],
+};
+const SPEED_LABEL: Record<Speed, string> = { fast: 'Fast', normal: 'Normal', slow: 'Slow' };
+
+const DEFAULT_SETTINGS: Settings = {
+  phone: '',
+  carrier: 'JIO',
+  setupDone: false,
+  langKey: '3',
+  menuKey: '2',
+  speed: 'normal',
+};
+
+const DEFAULT_PLANS: DataPlan[] = [
+  { id: 'j1', carrier: 'JIO', amount: '11', label: '10GB, 1 hour' },
+  { id: 'j2', carrier: 'JIO', amount: '15', label: 'Unlimited 5G, 1 day' },
+  { id: 'j3', carrier: 'JIO', amount: '19', label: '1GB data' },
+  { id: 'j4', carrier: 'JIO', amount: '29', label: '2GB data' },
+  { id: 'j5', carrier: 'JIO', amount: '49', label: '25GB, 1 day' },
+  { id: 'a1', carrier: 'AIRTEL', amount: '22', label: '1GB, 1 day' },
+  { id: 'a2', carrier: 'AIRTEL', amount: '26', label: '1.5GB, 1 day' },
+  { id: 'a3', carrier: 'AIRTEL', amount: '33', label: '2GB, 1 day' },
+  { id: 'a4', carrier: 'AIRTEL', amount: '49', label: '20GB, 1 day' },
+  { id: 'v1', carrier: 'VI', amount: '23', label: '1GB, 1 day' },
+  { id: 'v2', carrier: 'VI', amount: '26', label: '1.5GB, 1 day' },
+  { id: 'v3', carrier: 'VI', amount: '33', label: '2GB data' },
+  { id: 'v4', carrier: 'VI', amount: '49', label: '20GB, 1 day' },
+  { id: 'b1', carrier: 'BSNL', amount: '16', label: '2GB, 1 day' },
+  { id: 'b2', carrier: 'BSNL', amount: '19', label: '2GB, 1 day' },
+  { id: 'b3', carrier: 'BSNL', amount: '49', label: '10GB data' },
   { id: 'b4', carrier: 'BSNL', amount: '58', label: 'Data STV' },
 ];
 
-// Emergency backup per carrier (USSD codes are dialled as-is).
 const USSD_BACKUP: Record<Exclude<Carrier, 'JIO'>, { code: string; label: string }> = {
   AIRTEL: { code: '*567*3#', label: 'Airtel emergency data loan' },
   VI: { code: '*111*6#', label: 'Vi data loan' },
   BSNL: { code: '*124*2#', label: 'BSNL data STV menu' },
 };
 
-const KEY_USER = '@ZEROMB_USER_V1';
+const KEY_SETTINGS = '@ZEROMB_SETTINGS_V2';
 const KEY_PLANS = '@ZEROMB_PLANS_V1';
-const KEY_TEMPLATE = '@ZEROMB_TEMPLATE_V1';
 
 const isCarrier = (v: unknown): v is Carrier => CARRIERS.includes(v as Carrier);
-
 const isPlan = (p: any): p is DataPlan =>
-  p &&
-  typeof p.id === 'string' &&
-  isCarrier(p.carrier) &&
-  typeof p.amount === 'string' &&
-  typeof p.label === 'string';
+  p && typeof p.id === 'string' && isCarrier(p.carrier) && typeof p.amount === 'string' && typeof p.label === 'string';
+
+const digitsOnly = (s: string) => s.replace(/[^0-9]/g, '');
+const cleanAmount = (s: string) => digitsOnly(s).replace(/^0+/, '');
+
+function buildSequence(s: Settings, amount: string): string {
+  const [wLang, wMenu, wPhone, wAmount] = WAITS[s.speed];
+  const c = (n: number) => ','.repeat(n);
+  let seq = NPCI_NUMBER;
+  if (s.langKey) seq += c(wLang) + s.langKey;
+  seq += c(s.langKey ? wMenu : wLang) + s.menuKey;
+  seq += c(wPhone) + s.phone + '#';
+  seq += c(wAmount) + amount + '#';
+  return seq;
+}
 
 async function dial(sequence: string) {
-  // '#' must be percent-encoded in a tel: URI. '*' and ',' are fine as-is.
-  const url = `tel:${sequence.replace(/#/g, '%23')}`;
+  // '#' must be percent-encoded in a tel: URI.
   try {
-    await Linking.openURL(url);
+    await Linking.openURL(`tel:${sequence.replace(/#/g, '%23')}`);
   } catch {
     Alert.alert('Could not open the dialer', 'This device could not open a phone dialer.');
   }
 }
 
 export default function App() {
-  const [phone, setPhone] = useState('');
-  const [carrier, setCarrier] = useState<Carrier>('JIO');
-  const [plans, setPlans] = useState<DataPlan[]>(DEFAULT_DATA_PLANS);
-  const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [s, setS] = useState<Settings>(DEFAULT_SETTINGS);
+  const [plans, setPlans] = useState<DataPlan[]>(DEFAULT_PLANS);
+  const [ready, setReady] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editPacks, setEditPacks] = useState(false);
+  const [showCall, setShowCall] = useState(false);
   const [customAmount, setCustomAmount] = useState('');
   const [customLabel, setCustomLabel] = useState('');
+  const [pending, setPending] = useState<string | null>(null);
   const loaded = useRef(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const [u, p, t] = await Promise.all([
-          AsyncStorage.getItem(KEY_USER),
-          AsyncStorage.getItem(KEY_PLANS),
-          AsyncStorage.getItem(KEY_TEMPLATE),
-        ]);
-        if (u) {
-          const parsed = JSON.parse(u);
-          if (typeof parsed.phone === 'string') setPhone(parsed.phone);
-          if (isCarrier(parsed.carrier)) setCarrier(parsed.carrier);
+        const [a, b] = await Promise.all([AsyncStorage.getItem(KEY_SETTINGS), AsyncStorage.getItem(KEY_PLANS)]);
+        if (a) {
+          const p = JSON.parse(a);
+          setS({
+            phone: typeof p.phone === 'string' ? p.phone : '',
+            carrier: isCarrier(p.carrier) ? p.carrier : 'JIO',
+            setupDone: p.setupDone === true,
+            langKey: typeof p.langKey === 'string' ? digitsOnly(p.langKey) : DEFAULT_SETTINGS.langKey,
+            menuKey: typeof p.menuKey === 'string' && p.menuKey ? digitsOnly(p.menuKey) : DEFAULT_SETTINGS.menuKey,
+            speed: p.speed in WAITS ? p.speed : 'normal',
+          });
         }
-        if (p) {
-          const parsed = JSON.parse(p);
-          if (Array.isArray(parsed) && parsed.every(isPlan)) setPlans(parsed);
+        if (b) {
+          const p = JSON.parse(b);
+          if (Array.isArray(p) && p.every(isPlan)) setPlans(p);
         }
-        if (t) setTemplate(t);
       } catch {
-        // Corrupt or unreadable storage: fall back to defaults.
+        // fall back to defaults
       } finally {
         loaded.current = true;
+        setReady(true);
       }
     })();
   }, []);
 
-  const persist = (key: string, value: string) => {
-    if (!loaded.current) return;
-    AsyncStorage.setItem(key, value).catch(() => {});
-  };
-
-  const updateUser = (newPhone: string, newCarrier: Carrier) => {
-    setPhone(newPhone);
-    setCarrier(newCarrier);
-    persist(KEY_USER, JSON.stringify({ phone: newPhone, carrier: newCarrier }));
+  const update = (patch: Partial<Settings>) => {
+    const next = { ...s, ...patch };
+    setS(next);
+    if (loaded.current) AsyncStorage.setItem(KEY_SETTINGS, JSON.stringify(next)).catch(() => {});
   };
 
   const updatePlans = (next: DataPlan[]) => {
     setPlans(next);
-    persist(KEY_PLANS, JSON.stringify(next));
+    if (loaded.current) AsyncStorage.setItem(KEY_PLANS, JSON.stringify(next)).catch(() => {});
   };
 
-  const updateTemplate = (next: string) => {
-    setTemplate(next);
-    persist(KEY_TEMPLATE, next);
-  };
+  const phoneValid = /^[6-9]\d{9}$/.test(s.phone);
+  const accent = CARRIER_COLOR[s.carrier];
+  const carrierPlans = plans.filter((p) => p.carrier === s.carrier);
+  const showSetup = !s.setupDone || editingProfile;
 
-  const cleanAmount = (raw: string) => raw.replace(/[^0-9]/g, '').replace(/^0+/, '');
-
-  const phoneValid = /^[6-9]\d{9}$/.test(phone);
-
-  const recharge = async (rawAmount: string) => {
+  const askRecharge = (rawAmount: string) => {
     const amount = cleanAmount(rawAmount);
     if (!phoneValid) {
-      Alert.alert('Check your number', 'Enter your 10-digit mobile number at the top first.');
+      Alert.alert('Add your number', 'Enter your 10-digit mobile number first.');
       return;
     }
     if (!amount) {
       Alert.alert('Invalid amount', 'Enter the exact pack price in rupees.');
       return;
     }
-    if (!template.includes('{PHONE}') || !template.includes('{AMOUNT}')) {
-      Alert.alert('Dial sequence problem', 'The dial sequence must contain {PHONE} and {AMOUNT}.');
+    if (!s.menuKey) {
+      Alert.alert('Call setup', 'Set the menu key for mobile recharge under Call setup.');
       return;
     }
-    Clipboard.setStringAsync(amount).catch(() => {});
-    await dial(template.replace('{PHONE}', phone).replace('{AMOUNT}', amount));
+    setPending(amount);
+  };
+
+  const startRecharge = async () => {
+    if (!pending) return;
+    const amount = pending;
+    setPending(null);
+    await dial(buildSequence(s, amount));
   };
 
   const addCustomPlan = () => {
@@ -165,321 +209,372 @@ export default function App() {
       Alert.alert('Invalid amount', 'Enter the exact pack price in rupees, for example 39.');
       return;
     }
-    if (plans.some((p) => p.carrier === carrier && p.amount === amount)) {
-      Alert.alert('Already saved', `A â‚¹${amount} pack already exists for ${carrier}.`);
+    if (plans.some((p) => p.carrier === s.carrier && p.amount === amount)) {
+      Alert.alert('Already saved', `A ${RS}${amount} pack already exists for ${s.carrier}.`);
       return;
     }
     updatePlans([
-      {
-        id: Date.now().toString(),
-        carrier,
-        amount,
-        label: customLabel.trim() || `Custom ${carrier} data pack`,
-        isCustom: true,
-      },
+      { id: Date.now().toString(), carrier: s.carrier, amount, label: customLabel.trim() || 'Custom pack', isCustom: true },
       ...plans,
     ]);
     setCustomAmount('');
     setCustomLabel('');
   };
 
-  const deletePlan = (plan: DataPlan) => {
-    Alert.alert('Remove pack', `Remove â‚¹${plan.amount} ${plan.label}?`, [
+  const deletePlan = (plan: DataPlan) =>
+    Alert.alert('Remove pack', `Remove ${RS}${plan.amount} (${plan.label})?`, [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => updatePlans(plans.filter((p) => p.id !== plan.id)),
-      },
+      { text: 'Remove', style: 'destructive', onPress: () => updatePlans(plans.filter((p) => p.id !== plan.id)) },
     ]);
-  };
 
-  const resetCarrierPlans = () => {
-    Alert.alert('Reset packs', `Restore the default ${carrier} packs and remove your custom ones?`, [
+  const resetPlans = () =>
+    Alert.alert('Reset packs', `Restore the default ${s.carrier} packs and remove your custom ones?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Reset',
         onPress: () =>
-          updatePlans([
-            ...plans.filter((p) => p.carrier !== carrier),
-            ...DEFAULT_DATA_PLANS.filter((p) => p.carrier === carrier),
-          ]),
+          updatePlans([...plans.filter((p) => p.carrier !== s.carrier), ...DEFAULT_PLANS.filter((p) => p.carrier === s.carrier)]),
       },
     ]);
-  };
 
   const carrierBackup = async () => {
-    if (carrier === 'JIO') {
-      const web = `https://www.jio.com/selfcare/recharge/mobility/?serviceId=${phone}&serviceType=mobility&next=PREPAID`;
+    if (s.carrier === 'JIO') {
       try {
         await Linking.openURL('myjio://');
       } catch {
         try {
-          await Linking.openURL(web);
+          await Linking.openURL(
+            `https://www.jio.com/selfcare/recharge/mobility/?serviceId=${s.phone}&serviceType=mobility&next=PREPAID`
+          );
         } catch {
           Alert.alert('Could not open', 'Neither the MyJio app nor the Jio website could be opened.');
         }
       }
       return;
     }
-    await dial(USSD_BACKUP[carrier].code);
+    await dial(USSD_BACKUP[s.carrier].code);
   };
 
-  const carrierPlans = plans.filter((p) => p.carrier === carrier);
+  if (!ready) return <View style={styles.root} />;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar style="light" />
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.title}>ZeroMB</Text>
-        <Text style={styles.subtitle}>Recharge a data pack with zero internet, using UPI 123PAY</Text>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Mobile number to recharge</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            maxLength={10}
-            placeholder="10-digit mobile number"
-            placeholderTextColor="#64748B"
-            value={phone}
-            onChangeText={(v) => updateUser(v.replace(/[^0-9]/g, ''), carrier)}
-          />
-          {phone.length === 10 && !phoneValid && (
-            <Text style={styles.warn}>Indian mobile numbers start with 6, 7, 8 or 9.</Text>
-          )}
-
-          <Text style={[styles.label, styles.mt14]}>Operator</Text>
-          <View style={styles.carrierRow}>
-            {CARRIERS.map((c) => (
-              <TouchableOpacity
-                key={c}
-                style={[styles.chip, carrier === c && styles.chipActive]}
-                onPress={() => updateUser(phone, c)}
-              >
-                <Text style={[styles.chipText, carrier === c && styles.chipTextActive]}>{c}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
+          <Text style={styles.logo}>
+            Zero<Text style={{ color: accent }}>MB</Text>
+          </Text>
+          <Text style={styles.tag}>Recharge data when you have none</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>One-time setup</Text>
-          <Text style={styles.helper}>
-            Call the NPCI line once and say your bank's name so it knows which account to charge.
-          </Text>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={() => dial(NPCI_NUMBER)}>
-            <Text style={styles.secondaryBtnText}>Call 123PAY to link your bank</Text>
-          </TouchableOpacity>
-        </View>
+        {showSetup ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{s.setupDone ? 'Your details' : 'Set up in 3 steps'}</Text>
 
-        <View style={styles.card}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>{carrier} data packs</Text>
-            <TouchableOpacity onPress={resetCarrierPlans}>
-              <Text style={styles.link}>Reset</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.helper}>
-            Tap a pack. The dialer opens with everything typed in. Press the green call button, then
-            enter your UPI PIN when asked. The amount must match a real pack price, or the recharge
-            is rejected and refunded.
-          </Text>
-
-          {carrierPlans.length === 0 && (
-            <Text style={styles.helper}>No packs saved. Add one below or tap Reset.</Text>
-          )}
-
-          {carrierPlans.map((plan) => (
-            <View key={plan.id} style={styles.planRow}>
-              <TouchableOpacity style={styles.planMain} onPress={() => recharge(plan.amount)}>
-                <View style={styles.planText}>
-                  <Text style={styles.planLabel}>{plan.label}</Text>
-                  {plan.isCustom && <Text style={styles.planMeta}>Custom</Text>}
-                </View>
-                <Text style={styles.planAmount}>â‚¹{plan.amount}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.deleteBtn} onPress={() => deletePlan(plan)}>
-                <Text style={styles.deleteText}>âœ•</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-
-          <View style={styles.customBox}>
-            <Text style={styles.label}>Add a custom {carrier} pack</Text>
-            <View style={styles.customRow}>
-              <TextInput
-                style={[styles.input, styles.flex1]}
-                keyboardType="number-pad"
-                placeholder="â‚¹ Price"
-                placeholderTextColor="#64748B"
-                value={customAmount}
-                onChangeText={(v) => setCustomAmount(cleanAmount(v))}
-              />
-              <TextInput
-                style={[styles.input, styles.flex2]}
-                placeholder="Note (e.g. 3GB, 3 days)"
-                placeholderTextColor="#64748B"
-                value={customLabel}
-                onChangeText={setCustomLabel}
-              />
-            </View>
-            <View style={styles.customRow}>
-              <TouchableOpacity style={[styles.secondaryBtn, styles.flex1]} onPress={addCustomPlan}>
-                <Text style={styles.secondaryBtnText}>Save pack</Text>
-              </TouchableOpacity>
-              {customAmount.length > 0 && (
-                <TouchableOpacity
-                  style={[styles.primaryBtn, styles.flex1]}
-                  onPress={() => recharge(customAmount)}
-                >
-                  <Text style={styles.primaryBtnText}>Recharge â‚¹{customAmount}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Emergency backup</Text>
-          <Text style={styles.helper}>
-            {carrier === 'JIO'
-              ? 'Opens the MyJio app, or the Jio recharge page if the app is missing. Jio sites may load without data balance.'
-              : `Dials ${USSD_BACKUP[carrier].code} (${USSD_BACKUP[carrier].label}). Codes can change, check with your operator if it does nothing.`}
-          </Text>
-          <TouchableOpacity style={styles.dangerBtn} onPress={carrierBackup}>
-            <Text style={styles.primaryBtnText}>
-              {carrier === 'JIO' ? 'Open Jio recharge' : `Dial ${USSD_BACKUP[carrier].code}`}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity onPress={() => setShowAdvanced((s) => !s)}>
-          <Text style={[styles.link, styles.center]}>
-            {showAdvanced ? 'Hide' : 'Show'} advanced: dial sequence
-          </Text>
-        </TouchableOpacity>
-        {showAdvanced && (
-          <View style={[styles.card, styles.mt14]}>
-            <Text style={styles.helper}>
-              Each comma is a pause of about two seconds. {'{PHONE}'} and {'{AMOUNT}'} are filled in
-              for you. If the 123PAY menu changes, edit the digits and pauses here.
-            </Text>
+            <Text style={styles.step}>1. Your mobile number</Text>
             <TextInput
               style={styles.input}
-              value={template}
-              onChangeText={updateTemplate}
-              autoCapitalize="none"
-              autoCorrect={false}
+              keyboardType="number-pad"
+              maxLength={10}
+              placeholder="10-digit number"
+              placeholderTextColor="#64748B"
+              value={s.phone}
+              onChangeText={(v) => update({ phone: digitsOnly(v) })}
             />
-            <TouchableOpacity onPress={() => updateTemplate(DEFAULT_TEMPLATE)}>
-              <Text style={[styles.link, styles.mt14]}>Restore default sequence</Text>
-            </TouchableOpacity>
+            {s.phone.length === 10 && !phoneValid && (
+              <Text style={styles.warn}>Indian mobile numbers start with 6, 7, 8 or 9.</Text>
+            )}
+
+            <Text style={styles.step}>2. Your operator</Text>
+            <View style={styles.row}>
+              {CARRIERS.map((c) => (
+                <Pressable
+                  key={c}
+                  onPress={() => update({ carrier: c })}
+                  style={[styles.chip, s.carrier === c && { backgroundColor: CARRIER_COLOR[c], borderColor: CARRIER_COLOR[c] }]}
+                >
+                  <Text style={[styles.chipText, s.carrier === c && { color: '#fff' }]}>{c}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.step}>3. Link your bank (once)</Text>
+            <Text style={styles.help}>
+              Call the NPCI line and say your bank's name, for example "SBI". Do this one time only.
+            </Text>
+            <Pressable style={styles.secondaryBtn} onPress={() => dial(NPCI_NUMBER)}>
+              <Text style={styles.secondaryText}>Call 123PAY to link bank</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.primaryBtn, { backgroundColor: accent }, !phoneValid && styles.disabled]}
+              disabled={!phoneValid}
+              onPress={() => {
+                update({ setupDone: true });
+                setEditingProfile(false);
+              }}
+            >
+              <Text style={styles.primaryText}>{s.setupDone ? 'Save' : "Done, I'm set up"}</Text>
+            </Pressable>
           </View>
+        ) : (
+          <Pressable style={styles.profile} onPress={() => setEditingProfile(true)}>
+            <View style={[styles.dot, { backgroundColor: accent }]} />
+            <Text style={styles.profileText}>
+              {s.phone} {DOT} {s.carrier}
+            </Text>
+            <Text style={styles.link}>Edit</Text>
+          </Pressable>
+        )}
+
+        {s.setupDone && !editingProfile && (
+          <>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>Pick a pack</Text>
+              <View style={styles.row}>
+                <Pressable onPress={() => setEditPacks((v) => !v)} hitSlop={8}>
+                  <Text style={styles.link}>{editPacks ? 'Done' : 'Edit'}</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.grid}>
+              {carrierPlans.map((plan) => (
+                <Pressable
+                  key={plan.id}
+                  style={({ pressed }) => [styles.pack, { borderColor: accent }, pressed && styles.pressed]}
+                  onPress={() => (editPacks ? deletePlan(plan) : askRecharge(plan.amount))}
+                >
+                  <Text style={[styles.packAmount, { color: accent }]}>
+                    {RS}
+                    {plan.amount}
+                  </Text>
+                  <Text style={styles.packLabel} numberOfLines={2}>
+                    {plan.label}
+                  </Text>
+                  {editPacks && <Text style={styles.remove}>{CROSS} Remove</Text>}
+                </Pressable>
+              ))}
+            </View>
+            {carrierPlans.length === 0 && <Text style={styles.help}>No packs saved. Add one below.</Text>}
+
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Other amount</Text>
+              <Text style={styles.help}>
+                Type the exact price of any pack. A price that is not a real pack is rejected and refunded.
+              </Text>
+              <View style={styles.row}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  keyboardType="number-pad"
+                  placeholder={`${RS} Price`}
+                  placeholderTextColor="#64748B"
+                  value={customAmount}
+                  onChangeText={(v) => setCustomAmount(cleanAmount(v))}
+                />
+                <TextInput
+                  style={[styles.input, { flex: 2 }]}
+                  placeholder="Note (optional)"
+                  placeholderTextColor="#64748B"
+                  value={customLabel}
+                  onChangeText={setCustomLabel}
+                />
+              </View>
+              <View style={styles.row}>
+                <Pressable style={[styles.secondaryBtn, { flex: 1 }]} onPress={addCustomPlan}>
+                  <Text style={styles.secondaryText}>Save pack</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.primaryBtn, { flex: 1, backgroundColor: accent, marginTop: 0 }, !customAmount && styles.disabled]}
+                  disabled={!customAmount}
+                  onPress={() => askRecharge(customAmount)}
+                >
+                  <Text style={styles.primaryText}>
+                    Recharge {RS}
+                    {customAmount || ''}
+                  </Text>
+                </Pressable>
+              </View>
+              <Pressable onPress={resetPlans} style={{ marginTop: 12 }}>
+                <Text style={styles.link}>Reset {s.carrier} packs</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>No luck? Backup</Text>
+              <Text style={styles.help}>
+                {s.carrier === 'JIO'
+                  ? 'Opens the MyJio app, or the Jio recharge page if the app is missing.'
+                  : `Dials ${USSD_BACKUP[s.carrier].code} (${USSD_BACKUP[s.carrier].label}). Codes change, ask your operator if it does nothing.`}
+              </Text>
+              <Pressable style={styles.dangerBtn} onPress={carrierBackup}>
+                <Text style={styles.primaryText}>
+                  {s.carrier === 'JIO' ? 'Open Jio recharge' : `Dial ${USSD_BACKUP[s.carrier].code}`}
+                </Text>
+              </Pressable>
+            </View>
+
+            <Pressable onPress={() => setShowCall((v) => !v)} style={styles.moreLink}>
+              <Text style={styles.link}>{showCall ? 'Hide' : 'Show'} call setup (if the menu goes wrong)</Text>
+            </Pressable>
+            {showCall && (
+              <View style={styles.card}>
+                <Text style={styles.help}>
+                  The app presses menu keys for you after waiting for each voice prompt. If it presses too early, choose
+                  Slow. If a key is wrong for your menu, change it here.
+                </Text>
+
+                <Text style={styles.step}>Key for English in the language menu</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="blank = skip"
+                  placeholderTextColor="#64748B"
+                  value={s.langKey}
+                  onChangeText={(v) => update({ langKey: digitsOnly(v) })}
+                />
+
+                <Text style={styles.step}>Key for Mobile Recharge in the main menu</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  value={s.menuKey}
+                  onChangeText={(v) => update({ menuKey: digitsOnly(v) })}
+                />
+
+                <Text style={styles.step}>Waiting speed</Text>
+                <View style={styles.row}>
+                  {(Object.keys(WAITS) as Speed[]).map((sp) => (
+                    <Pressable
+                      key={sp}
+                      onPress={() => update({ speed: sp })}
+                      style={[styles.chip, s.speed === sp && { backgroundColor: accent, borderColor: accent }]}
+                    >
+                      <Text style={[styles.chipText, s.speed === sp && { color: '#fff' }]}>{SPEED_LABEL[sp]}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={styles.step}>Preview (each comma is about 2 seconds)</Text>
+                <Text style={styles.mono}>{buildSequence(s, '19')}</Text>
+              </View>
+            )}
+
+            <Text style={styles.footer}>
+              Unofficial tool, not affiliated with NPCI or any operator. Your PIN is only typed into the call.
+            </Text>
+          </>
         )}
       </ScrollView>
+
+      <Modal transparent animationType="fade" visible={pending !== null} onRequestClose={() => setPending(null)}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>
+              Recharge {RS}
+              {pending} for {s.phone}?
+            </Text>
+            <Text style={styles.help}>
+              1. The dialer opens with everything typed in.{'\n'}
+              2. Press the green call button.{'\n'}
+              3. Do not press any keys while the voice speaks.{'\n'}
+              4. When asked, enter your UPI PIN.
+            </Text>
+            <Pressable style={[styles.primaryBtn, { backgroundColor: accent }]} onPress={startRecharge}>
+              <Text style={styles.primaryText}>Open dialer</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryBtn} onPress={() => setPending(null)}>
+              <Text style={styles.secondaryText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: '#0B0F19' },
-  flex1: { flex: 1 },
-  flex2: { flex: 2 },
-  container: { flex: 1, backgroundColor: '#0B0F19' },
+  root: { flex: 1, backgroundColor: '#0B0F19' },
   content: { padding: 18, paddingTop: 56, paddingBottom: 48 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#F8FAFC' },
-  subtitle: { fontSize: 13, color: '#94A3B8', marginBottom: 18, marginTop: 2 },
+  header: { marginBottom: 18 },
+  logo: { fontSize: 32, fontWeight: '800', color: '#F8FAFC', letterSpacing: -0.5 },
+  tag: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
   card: {
-    backgroundColor: '#1E293B',
-    borderRadius: 14,
+    backgroundColor: '#151C2C',
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#243049',
   },
-  mt14: { marginTop: 14 },
-  center: { textAlign: 'center' },
-  label: { color: '#CBD5E1', fontSize: 12, fontWeight: '600', marginBottom: 6 },
+  cardTitle: { color: '#F8FAFC', fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  step: { color: '#CBD5E1', fontSize: 13, fontWeight: '600', marginTop: 14, marginBottom: 6 },
+  help: { color: '#94A3B8', fontSize: 12.5, lineHeight: 18, marginBottom: 10 },
   warn: { color: '#FBBF24', fontSize: 12, marginTop: 6 },
   input: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0B0F19',
     color: '#F8FAFC',
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 11,
+    borderRadius: 10,
     fontSize: 15,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#243049',
   },
-  carrierRow: { flexDirection: 'row', gap: 8 },
+  mono: { color: '#CBD5E1', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12 },
+  row: { flexDirection: 'row', gap: 8 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   chip: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#0F172A',
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: '#0B0F19',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#243049',
   },
-  chipActive: { backgroundColor: '#2563EB', borderColor: '#60A5FA' },
-  chipText: { color: '#94A3B8', fontWeight: 'bold', fontSize: 13 },
-  chipTextActive: { color: '#FFFFFF' },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { color: '#F8FAFC', fontSize: 16, fontWeight: 'bold' },
-  link: { color: '#38BDF8', fontSize: 12, fontWeight: '600' },
-  helper: { color: '#94A3B8', fontSize: 12, marginTop: 4, marginBottom: 12, lineHeight: 17 },
-  planRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  planMain: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-    padding: 14,
-    borderRadius: 10,
+  chipText: { color: '#94A3B8', fontWeight: '700', fontSize: 13 },
+  profile: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  planText: { flex: 1, paddingRight: 8 },
-  planLabel: { color: '#F8FAFC', fontSize: 14, fontWeight: '600' },
-  planMeta: { color: '#64748B', fontSize: 11, marginTop: 2 },
-  planAmount: { color: '#4ADE80', fontSize: 18, fontWeight: 'bold' },
-  deleteBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#475569',
-  },
-  deleteText: { color: '#F87171', fontSize: 14, fontWeight: 'bold' },
-  customBox: { marginTop: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#334155' },
-  customRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  secondaryBtn: {
-    backgroundColor: '#334155',
+    backgroundColor: '#151C2C',
+    borderRadius: 14,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#243049',
   },
-  secondaryBtnText: { color: '#F8FAFC', fontSize: 13, fontWeight: '600' },
-  primaryBtn: {
-    backgroundColor: '#16A34A',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
+  profileText: { flex: 1, color: '#F8FAFC', fontSize: 15, fontWeight: '600' },
+  sectionTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '700' },
+  link: { color: '#38BDF8', fontSize: 13, fontWeight: '600' },
+  moreLink: { alignItems: 'center', paddingVertical: 10, marginBottom: 8 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+  pack: {
+    width: '48%',
+    flexGrow: 1,
+    backgroundColor: '#151C2C',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.5,
+    minHeight: 96,
   },
-  primaryBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' },
-  dangerBtn: {
-    backgroundColor: '#DC2626',
-    paddingVertical: 13,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
+  pressed: { opacity: 0.7 },
+  packAmount: { fontSize: 28, fontWeight: '800' },
+  packLabel: { color: '#94A3B8', fontSize: 12.5, marginTop: 4 },
+  remove: { color: '#F87171', fontSize: 12, fontWeight: '700', marginTop: 6 },
+  primaryBtn: { paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 },
+  primaryText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  secondaryBtn: { backgroundColor: '#243049', paddingVertical: 13, borderRadius: 12, alignItems: 'center', marginTop: 4 },
+  secondaryText: { color: '#F8FAFC', fontSize: 14, fontWeight: '600' },
+  dangerBtn: { backgroundColor: '#DC2626', paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
+  disabled: { opacity: 0.4 },
+  footer: { color: '#64748B', fontSize: 11.5, textAlign: 'center', marginTop: 8, lineHeight: 16 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: '#151C2C', padding: 20, paddingBottom: 32, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  sheetTitle: { color: '#F8FAFC', fontSize: 19, fontWeight: '800', marginBottom: 10 },
 });
