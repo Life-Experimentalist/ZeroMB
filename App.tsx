@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as Cellular from 'expo-cellular';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const RS = '₹';
@@ -139,6 +140,18 @@ function isInstalledWeb(): boolean {
   return nav.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 }
 
+const RELEASES_API = 'https://api.github.com/repos/Life-Experimentalist/ZeroMB/releases/latest';
+
+const versionParts = (v: string) => v.replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
+function isNewer(latest: string, current: string): boolean {
+  const a = versionParts(latest);
+  const b = versionParts(current);
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+  }
+  return false;
+}
+
 function carrierFromName(name: string | null): Carrier | null {
   const n = (name || '').toLowerCase();
   if (n.includes('jio')) return 'JIO';
@@ -170,6 +183,25 @@ export default function App() {
   const loaded = useRef(false);
   const [detected, setDetected] = useState(false);
   const [installEvt, setInstallEvt] = useState<any>(null);
+  const [newRelease, setNewRelease] = useState<{ version: string; url: string } | null>(null);
+
+  // Quiet check for a newer APK. Fails silently when there is no data.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    fetch(RELEASES_API, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((j) => {
+        const current = Constants.expoConfig?.version || '0.0.0';
+        if (typeof j.tag_name === 'string' && typeof j.html_url === 'string' && isNewer(j.tag_name, current)) {
+          setNewRelease({ version: j.tag_name.replace(/^v/, ''), url: j.html_url });
+        }
+      })
+      .catch(() => {})
+      .finally(() => clearTimeout(timer));
+    return () => ctrl.abort();
+  }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
@@ -352,6 +384,16 @@ export default function App() {
           </Text>
           <Text style={styles.tag}>Recharge data when you have none</Text>
         </View>
+
+        {newRelease && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Version {newRelease.version} is out</Text>
+            <Text style={styles.help}>Download the new APK from the release page and install it over this one. Your settings stay.</Text>
+            <Pressable style={[styles.primaryBtn, { backgroundColor: accent }]} onPress={() => Linking.openURL(newRelease.url)}>
+              <Text style={styles.primaryText}>Get the update</Text>
+            </Pressable>
+          </View>
+        )}
 
         {Platform.OS === 'web' && !isInstalledWeb() && (
           <View style={styles.card}>
