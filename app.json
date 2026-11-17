@@ -9,10 +9,10 @@
     "backgroundColor": "#0B0F19",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lifeexperimentalist.zeromb"
+      "bundleIdentifier": "com.vkrishna04.zeromb"
     },
     "android": {
-      "package": "com.lifeexperimentalist.zeromb",
+      "package": "com.vkrishna04.zeromb",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
