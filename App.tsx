@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -36,6 +37,9 @@ interface Settings {
   setupDone: boolean;
   langKey: string; // key that picks English in the first voice menu ('' to skip)
   menuKey: string; // key for mobile recharge in the main menu
+  targetKey: string; // 1 = current phone, 2 = another phone
+  confirmKey: string; // 1 = continue after it reads the number, operator and bank
+  autoAmount: boolean; // type the amount into the call too
   speed: Speed;
 }
 
@@ -50,11 +54,13 @@ const CARRIER_COLOR: Record<Carrier, string> = {
 const NPCI_NUMBER = '08045163666';
 
 // Each comma is a pause of about two seconds on Android dialers.
-// Order: before language key, before menu key, before number, before amount.
-const WAITS: Record<Speed, [number, number, number, number]> = {
-  fast: [2, 1, 1, 1],
-  normal: [3, 2, 2, 2],
-  slow: [5, 3, 3, 3],
+// Order: before language key, before menu key (the call says your name here),
+// before current/another phone key, before confirm key (it reads number, operator, bank),
+// before amount.
+const WAITS: Record<Speed, [number, number, number, number, number]> = {
+  fast: [2, 3, 1, 3, 1],
+  normal: [3, 5, 2, 5, 2],
+  slow: [5, 7, 3, 7, 3],
 };
 const SPEED_LABEL: Record<Speed, string> = { fast: 'Fast', normal: 'Normal', slow: 'Slow' };
 
@@ -63,7 +69,10 @@ const DEFAULT_SETTINGS: Settings = {
   carrier: 'JIO',
   setupDone: false,
   langKey: '3',
-  menuKey: '2',
+  menuKey: '3',
+  targetKey: '1',
+  confirmKey: '1',
+  autoAmount: false,
   speed: 'normal',
 };
 
@@ -93,7 +102,8 @@ const USSD_BACKUP: Record<Exclude<Carrier, 'JIO'>, { code: string; label: string
   BSNL: { code: '*124*2#', label: 'BSNL data STV menu' },
 };
 
-const KEY_SETTINGS = '@ZEROMB_SETTINGS_V2';
+const KEY_SETTINGS = '@ZEROMB_SETTINGS_V3';
+const KEY_SETTINGS_OLD = '@ZEROMB_SETTINGS_V2';
 const KEY_PLANS = '@ZEROMB_PLANS_V1';
 
 const isCarrier = (v: unknown): v is Carrier => CARRIERS.includes(v as Carrier);
@@ -104,13 +114,14 @@ const digitsOnly = (s: string) => s.replace(/[^0-9]/g, '');
 const cleanAmount = (s: string) => digitsOnly(s).replace(/^0+/, '');
 
 function buildSequence(s: Settings, amount: string): string {
-  const [wLang, wMenu, wPhone, wAmount] = WAITS[s.speed];
+  const [wLang, wMenu, wTarget, wConfirm, wAmount] = WAITS[s.speed];
   const c = (n: number) => ','.repeat(n);
   let seq = NPCI_NUMBER;
   if (s.langKey) seq += c(wLang) + s.langKey;
-  seq += c(s.langKey ? wMenu : wLang) + s.menuKey;
-  seq += c(wPhone) + s.phone + '#';
-  seq += c(wAmount) + amount + '#';
+  seq += c(s.langKey ? wMenu : wLang + wMenu) + s.menuKey;
+  seq += c(wTarget) + s.targetKey;
+  seq += c(wConfirm) + s.confirmKey;
+  if (s.autoAmount) seq += c(wAmount) + amount + '#';
   return seq;
 }
 
@@ -138,7 +149,13 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, b] = await Promise.all([AsyncStorage.getItem(KEY_SETTINGS), AsyncStorage.getItem(KEY_PLANS)]);
+        const [a, old, b] = await Promise.all([
+          AsyncStorage.getItem(KEY_SETTINGS),
+          AsyncStorage.getItem(KEY_SETTINGS_OLD),
+          AsyncStorage.getItem(KEY_PLANS),
+        ]);
+        const key = (v: unknown, fallback: string) =>
+          typeof v === 'string' && digitsOnly(v) ? digitsOnly(v) : fallback;
         if (a) {
           const p = JSON.parse(a);
           setS({
@@ -146,8 +163,20 @@ export default function App() {
             carrier: isCarrier(p.carrier) ? p.carrier : 'JIO',
             setupDone: p.setupDone === true,
             langKey: typeof p.langKey === 'string' ? digitsOnly(p.langKey) : DEFAULT_SETTINGS.langKey,
-            menuKey: typeof p.menuKey === 'string' && p.menuKey ? digitsOnly(p.menuKey) : DEFAULT_SETTINGS.menuKey,
+            menuKey: key(p.menuKey, DEFAULT_SETTINGS.menuKey),
+            targetKey: key(p.targetKey, DEFAULT_SETTINGS.targetKey),
+            confirmKey: key(p.confirmKey, DEFAULT_SETTINGS.confirmKey),
+            autoAmount: p.autoAmount === true,
             speed: p.speed in WAITS ? p.speed : 'normal',
+          });
+        } else if (old) {
+          // Keep the profile from 1.1.0 but use the corrected menu keys.
+          const p = JSON.parse(old);
+          setS({
+            ...DEFAULT_SETTINGS,
+            phone: typeof p.phone === 'string' ? p.phone : '',
+            carrier: isCarrier(p.carrier) ? p.carrier : 'JIO',
+            setupDone: p.setupDone === true,
           });
         }
         if (b) {
@@ -189,8 +218,8 @@ export default function App() {
       Alert.alert('Invalid amount', 'Enter the exact pack price in rupees.');
       return;
     }
-    if (!s.menuKey) {
-      Alert.alert('Call setup', 'Set the menu key for mobile recharge under Call setup.');
+    if (!s.menuKey || !s.targetKey || !s.confirmKey) {
+      Alert.alert('Call setup', 'A menu key is empty. Fill in all keys under Call setup.');
       return;
     }
     setPending(amount);
@@ -445,6 +474,33 @@ export default function App() {
                   onChangeText={(v) => update({ menuKey: digitsOnly(v) })}
                 />
 
+                <Text style={styles.step}>Key for "current phone" (the other one is another phone)</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  value={s.targetKey}
+                  onChangeText={(v) => update({ targetKey: digitsOnly(v) })}
+                />
+
+                <Text style={styles.step}>Key for "continue" after it reads your number and bank</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  value={s.confirmKey}
+                  onChangeText={(v) => update({ confirmKey: digitsOnly(v) })}
+                />
+
+                <View style={[styles.rowBetween, { marginTop: 14, marginBottom: 0 }]}>
+                  <Text style={[styles.step, { flex: 1, marginTop: 0 }]}>Also type the amount into the call</Text>
+                  <Switch value={s.autoAmount} onValueChange={(v) => update({ autoAmount: v })} />
+                </View>
+                <Text style={styles.help}>
+                  Off by default. Keys typed when the call is not asking for an amount could count as wrong PIN
+                  attempts. Turn on only if your call asks for the amount before the PIN.
+                </Text>
+
                 <Text style={styles.step}>Waiting speed</Text>
                 <View style={styles.row}>
                   {(Object.keys(WAITS) as Speed[]).map((sp) => (
@@ -478,10 +534,12 @@ export default function App() {
               {pending} for {s.phone}?
             </Text>
             <Text style={styles.help}>
-              1. The dialer opens with everything typed in.{'\n'}
-              2. Press the green call button.{'\n'}
+              1. The dialer opens with the menu keys typed in.{'\n'}
+              2. Press the green call button and wait.{'\n'}
               3. Do not press any keys while the voice speaks.{'\n'}
-              4. When asked, enter your UPI PIN.
+              {s.autoAmount
+                ? `4. When asked, enter your UPI PIN.`
+                : `4. If it asks for the amount, type ${pending} and press #. Then enter your UPI PIN.`}
             </Text>
             <Pressable style={[styles.primaryBtn, { backgroundColor: accent }]} onPress={startRecharge}>
               <Text style={styles.primaryText}>Open dialer</Text>

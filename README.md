@@ -40,7 +40,7 @@ EAS prints a download link for the `.apk` when it finishes. Copy it to your phon
 
 ## Things to check before relying on it
 
-- The call goes: wait for the language menu, press the English key, wait for the main menu, press the Mobile Recharge key, then your number and the amount. The keys (English `3`, Mobile Recharge `2`) and the waiting speed are editable under "call setup" in the app. A key pressed while the voice is still speaking can pick the wrong language or option, so use Slow if the app presses too early. Do not press anything yourself during the call.
+- The call goes: language menu (English `3`), it says your name, then the main menu (Mobile Recharge `3`), then `1` for current phone, it reads your number, operator and bank, then `1` to continue. After that it asks for your UPI PIN. The app types those keys for you. They and the waiting speed are editable under "call setup". Typing the amount into the call is off by default; turn it on only if your call asks for the amount. A key pressed while the voice is still speaking can pick the wrong language or option, so use Slow if the app presses too early. Do not press anything yourself during the call.
 - Pack prices and the USSD backup codes (`*567*3#`, `*111*6#`, `*124*2#`) change over time. Confirm with your operator.
 - Some dialer apps ignore pause commas. If yours does, dial `080 4516 3666` by hand and use the keypad.
 - The first time, call 123PAY once from the app and say your bank name so NPCI knows which account to use.
