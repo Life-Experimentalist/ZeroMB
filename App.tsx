@@ -116,13 +116,28 @@ const cleanAmount = (s: string) => digitsOnly(s).replace(/^0+/, '');
 function buildSequence(s: Settings, amount: string): string {
   const [wLang, wMenu, wTarget, wConfirm, wAmount] = WAITS[s.speed];
   const c = (n: number) => ','.repeat(n);
+  // The language menu only plays the first time, so a normal call goes straight
+  // to the name readout and the main menu.
   let seq = NPCI_NUMBER;
-  if (s.langKey) seq += c(wLang) + s.langKey;
-  seq += c(s.langKey ? wMenu : wLang + wMenu) + s.menuKey;
+  seq += c(wLang + wMenu) + s.menuKey;
   seq += c(wTarget) + s.targetKey;
   seq += c(wConfirm) + s.confirmKey;
   if (s.autoAmount) seq += c(wAmount) + amount + '#';
   return seq;
+}
+
+// One-off helper: at the end of the main menu, # opens account management and 1 changes the language.
+function buildLanguageFix(s: Settings): string {
+  const [wLang, wMenu] = WAITS[s.speed];
+  const c = (n: number) => ','.repeat(n);
+  return NPCI_NUMBER + c(wLang + wMenu + 3) + '#' + c(3) + '1' + c(4) + (s.langKey || '3');
+}
+
+// True when the web build was opened from the home screen icon (iOS and Android).
+function isInstalledWeb(): boolean {
+  if (typeof window === 'undefined') return false;
+  const nav = window.navigator as any;
+  return nav.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 }
 
 async function dial(sequence: string) {
@@ -297,6 +312,16 @@ export default function App() {
           <Text style={styles.tag}>Recharge data when you have none</Text>
         </View>
 
+        {Platform.OS === 'web' && !isInstalledWeb() && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Install this so it works with no data</Text>
+            <Text style={styles.help}>
+              iPhone: tap Share, then Add to Home Screen. Android: open the browser menu and tap Install app. Open it once
+              while you still have data, after that it works offline.
+            </Text>
+          </View>
+        )}
+
         {showSetup ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{s.setupDone ? 'Your details' : 'Set up in 3 steps'}</Text>
@@ -454,16 +479,33 @@ export default function App() {
                   Slow. If a key is wrong for your menu, change it here.
                 </Text>
 
-                <Text style={styles.step}>Key for English in the language menu</Text>
+                <Text style={styles.step}>Key for English (only used by "Fix language")</Text>
                 <TextInput
                   style={styles.input}
                   keyboardType="number-pad"
                   maxLength={2}
-                  placeholder="blank = skip"
-                  placeholderTextColor="#64748B"
                   value={s.langKey}
                   onChangeText={(v) => update({ langKey: digitsOnly(v) })}
                 />
+                <Text style={styles.help}>
+                  The language menu only plays on your very first call, so normal recharges skip it. If it got set to the
+                  wrong language, use the button below. English is usually 3 and Hindi 2.
+                </Text>
+                <Pressable
+                  style={styles.secondaryBtn}
+                  onPress={() =>
+                    Alert.alert(
+                      'Fix language',
+                      'Opens the dialer. When the call connects it waits for the main menu, presses # (manage account), then 1 (change language), then the English key. Do not press anything yourself.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Open dialer', onPress: () => dial(buildLanguageFix(s)) },
+                      ],
+                    )
+                  }
+                >
+                  <Text style={styles.secondaryText}>Fix language to English</Text>
+                </Pressable>
 
                 <Text style={styles.step}>Key for Mobile Recharge in the main menu</Text>
                 <TextInput
@@ -556,7 +598,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0B0F19' },
-  content: { padding: 18, paddingTop: 56, paddingBottom: 48 },
+  content: { padding: 18, paddingTop: 56, paddingBottom: 48, maxWidth: 560, width: '100%', alignSelf: 'center' },
   header: { marginBottom: 18 },
   logo: { fontSize: 32, fontWeight: '800', color: '#F8FAFC', letterSpacing: -0.5 },
   tag: { fontSize: 13, color: '#94A3B8', marginTop: 2 },

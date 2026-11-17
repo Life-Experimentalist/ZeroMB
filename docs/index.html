@@ -2,72 +2,244 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ZeroMB: recharge data with zero data</title>
-<meta name="description" content="Offline Android app that recharges a Jio, Airtel, Vi or BSNL data pack through UPI 123PAY when your mobile data has run out.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ZeroMB</title>
+<meta name="description" content="Recharge a data pack when you have 0 MB left. ZeroMB opens your phone dialer with the UPI 123PAY menu keys already typed in. No data, no permissions.">
+<meta name="theme-color" content="#FFD23F">
+<link rel="icon" href="app/favicon.ico">
+<link rel="manifest" href="app/manifest.webmanifest">
+<script>
+  // The installed web app should open the app itself, not this page.
+  (function () {
+    var installed = window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    if (installed) location.replace('/app/');
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0b0f19; --card:#1e293b; --line:#334155; --text:#f8fafc; --mute:#94a3b8; --green:#4ade80; --blue:#38bdf8; }
-  @media (prefers-color-scheme: light) {
-    :root { --bg:#f8fafc; --card:#ffffff; --line:#e2e8f0; --text:#0f172a; --mute:#475569; --green:#15803d; --blue:#0369a1; }
+  :root {
+    --field: #FFD23F;
+    --ink: #14213D;
+    --paper: #FFFDF5;
+    --red: #D6243B;
+    --ink-soft: #3A4766;
+    --line: rgba(20, 33, 61, 0.22);
+    --display: 'Big Shoulders Display', 'Arial Narrow', Impact, sans-serif;
+    --text: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
-  main { max-width: 720px; margin: 0 auto; padding: 56px 16px 64px; }
-  h1 { font-size: 2.4rem; margin: 0 0 8px; }
-  h2 { font-size: 1.2rem; margin: 40px 0 12px; }
-  p, li { color: var(--mute); }
-  .lead { font-size: 1.1rem; }
-  .btn { display:inline-block; background:var(--green); color:#04210f; font-weight:700; padding:12px 20px; border-radius:10px; text-decoration:none; margin:16px 8px 0 0; }
-  .btn.alt { background:transparent; color:var(--blue); border:1px solid var(--line); }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 20px; margin:12px 0; }
-  code { background:var(--bg); border:1px solid var(--line); padding:2px 6px; border-radius:6px; font-size:.9em; color:var(--text); word-break:break-all; }
-  table { width:100%; border-collapse:collapse; font-size:.95rem; }
-  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); color:var(--mute); vertical-align:top; }
-  th { color:var(--text); }
-  a { color: var(--blue); }
-  footer { margin-top: 48px; font-size:.85rem; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--field);
+    color: var(--ink);
+    font: 17px/1.55 var(--text);
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  /* top bar */
+  .bar { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; }
+  .mark { font: 900 28px/1 var(--display); letter-spacing: 0.01em; text-decoration: none; }
+  .bar nav { display: flex; gap: 22px; font-weight: 500; font-size: 15px; }
+  .bar nav a { text-decoration: none; border-bottom: 2px solid transparent; }
+  .bar nav a:hover { border-color: var(--ink); }
+
+  /* hero: the sign */
+  .hero { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 40px; align-items: center; padding: 28px 0 64px; }
+  .sign {
+    font: 900 clamp(120px, 24vw, 280px)/0.78 var(--display);
+    letter-spacing: -0.02em;
+    margin: 0 0 18px -0.04em;
+  }
+  .sign .zero { color: var(--red); }
+  .lede { font-size: clamp(20px, 2.6vw, 26px); line-height: 1.35; font-weight: 500; max-width: 24ch; margin: 0 0 26px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    display: inline-block; text-decoration: none; font-weight: 600; font-size: 17px;
+    padding: 15px 24px; border: 3px solid var(--ink); border-radius: 4px;
+    background: var(--ink); color: var(--field);
+    box-shadow: 5px 5px 0 var(--ink);
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+  .btn:hover { transform: translate(2px, 2px); box-shadow: 3px 3px 0 var(--ink); }
+  .btn.alt { background: transparent; color: var(--ink); }
+  .fine { font-size: 14px; color: var(--ink-soft); margin: 14px 0 0; }
+
+  /* the call ticket */
+  .ticket {
+    background: var(--paper); border: 3px solid var(--ink); border-radius: 6px;
+    padding: 22px 22px 8px; box-shadow: 8px 8px 0 var(--ink); transform: rotate(1.2deg);
+  }
+  .ticket h2 { font: 800 22px/1 var(--display); margin: 0 0 4px; letter-spacing: 0.02em; }
+  .ticket .num { font: 800 34px/1.1 var(--display); letter-spacing: 0.03em; margin: 0 0 14px; }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li {
+    display: grid; grid-template-columns: 46px 1fr; gap: 14px; align-items: center;
+    padding: 11px 0; border-top: 1.5px dashed var(--line); font-size: 15px; line-height: 1.3;
+  }
+  .key {
+    display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%;
+    border: 2.5px solid var(--ink); font: 800 24px/1 var(--display);
+  }
+  .key.you { background: var(--ink); color: var(--paper); }
+  .steps small { display: block; color: var(--ink-soft); font-size: 13px; }
+  .steps li { animation: ring 0.9s ease-out both; }
+  .steps li:nth-child(1) { animation-delay: 0.5s; }
+  .steps li:nth-child(2) { animation-delay: 1.4s; }
+  .steps li:nth-child(3) { animation-delay: 2.3s; }
+  .steps li:nth-child(4) { animation-delay: 3.2s; }
+  .steps li:nth-child(5) { animation-delay: 4.1s; }
+  @keyframes ring {
+    0% { background: transparent; }
+    35% { background: var(--field); }
+    100% { background: transparent; }
+  }
+
+  /* sections */
+  section { padding: 48px 0; border-top: 3px solid var(--ink); }
+  h2.big { font: 900 clamp(40px, 7vw, 72px)/0.95 var(--display); margin: 0 0 22px; letter-spacing: 0.005em; }
+  .cols { display: grid; grid-template-columns: repeat(2, 1fr); gap: 36px; }
+  .cols p, .cols li { max-width: 60ch; }
+  h3 { font: 800 28px/1 var(--display); margin: 0 0 8px; letter-spacing: 0.01em; }
+  p { margin: 0 0 14px; }
+  ul.plain { padding-left: 1.1em; margin: 0 0 14px; }
+  ul.plain li { margin-bottom: 6px; }
+  code, .mono { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 0.9em; background: rgba(20, 33, 61, 0.1); padding: 2px 6px; border-radius: 3px; word-break: break-all; }
+
+  .packs { width: 100%; border-collapse: collapse; font-size: 16px; }
+  .packs th, .packs td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1.5px solid var(--line); vertical-align: top; }
+  .packs th { font: 800 22px/1 var(--display); letter-spacing: 0.02em; width: 110px; }
+
+  footer { border-top: 3px solid var(--ink); padding: 26px 0 40px; font-size: 14px; color: var(--ink-soft); }
+  footer p { max-width: 70ch; }
+
+  @media (max-width: 820px) {
+    .hero { grid-template-columns: 1fr; gap: 34px; }
+    .ticket { transform: none; }
+    .cols { grid-template-columns: 1fr; gap: 8px; }
+    .bar nav { gap: 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .steps li { animation: none; }
+    .btn { transition: none; }
+  }
 </style>
 </head>
 <body>
-<main>
-  <h1>ZeroMB</h1>
-  <p class="lead">Out of data? Recharge a data pack without any data. ZeroMB opens your dialer with the UPI 123PAY menu already typed in. You press call and enter your UPI PIN.</p>
-  <a class="btn" href="https://github.com/Life-Experimentalist/ZeroMB/releases/latest">Download APK</a>
-  <a class="btn alt" href="https://github.com/Life-Experimentalist/ZeroMB">Source on GitHub</a>
+<div class="wrap">
+  <header class="bar">
+    <a class="mark" href="#top">ZeroMB</a>
+    <nav>
+      <a href="#get">Get it</a>
+      <a href="#how">How it works</a>
+      <a href="#safe">Is it safe</a>
+    </nav>
+  </header>
 
-  <h2>How to use it</h2>
-  <div class="card">
-    <ol>
-      <li>Open the app, enter your 10-digit number and pick your operator.</li>
-      <li>Tap "Call 123PAY to link your bank" once and say your bank's name, for example "SBI".</li>
-      <li>When data runs out, open the app and tap a pack, or type any pack price.</li>
-      <li>Press the green call button. When the voice asks for your UPI PIN, type it on the keypad.</li>
-    </ol>
-  </div>
+  <main id="top">
+    <div class="hero">
+      <div>
+        <h1 class="sign" aria-label="0 MB left"><span class="zero">0</span>MB</h1>
+        <p class="lede">Out of data? Top up with a phone call instead.</p>
+        <div class="cta">
+          <a class="btn" href="https://github.com/Life-Experimentalist/ZeroMB/releases/latest">Download for Android</a>
+          <a class="btn alt" href="app/">Open the web app</a>
+        </div>
+        <p class="fine">Free. Works for Jio, Airtel, Vi and BSNL prepaid. No permissions asked.</p>
+      </div>
 
-  <h2>Included packs</h2>
-  <div class="card">
-    <table>
-      <tr><th>Operator</th><th>Default packs (&#8377;)</th><th>Backup</th></tr>
-      <tr><td>Jio</td><td>11, 15, 19, 29, 49</td><td>MyJio app or jio.com</td></tr>
-      <tr><td>Airtel</td><td>22, 26, 33, 49</td><td><code>*567*3#</code></td></tr>
-      <tr><td>Vi</td><td>23, 26, 33, 49</td><td><code>*111*6#</code></td></tr>
-      <tr><td>BSNL</td><td>16, 19, 49, 58</td><td><code>*124*2#</code></td></tr>
-    </table>
-    <p>The rupee amount is the plan ID, so you can add any new pack by its exact price. A price that is not a real pack is rejected and refunded.</p>
-  </div>
+      <aside class="ticket" aria-label="What the call does">
+        <h2>The call the app places</h2>
+        <p class="num">080 4516 3666</p>
+        <ol class="steps">
+          <li><span class="key">3</span><span>Mobile recharge<small>after it says your name and the menu</small></span></li>
+          <li><span class="key">1</span><span>Current phone<small>2 would be another phone</small></span></li>
+          <li><span class="key">1</span><span>Continue<small>after it reads your number, operator and bank</small></span></li>
+          <li><span class="key you">PIN</span><span>You type your UPI PIN<small>the app never sees it</small></span></li>
+          <li><span class="key you">&#8377;</span><span>Done<small>the pack is added by your operator</small></span></li>
+        </ol>
+      </aside>
+    </div>
 
-  <h2>Privacy and permissions</h2>
-  <div class="card">
-    <p>The app asks for no Android permissions, has no internet access of its own, and has no account or server. Your number, operator and pack list stay on your phone. Payment goes directly between your phone and NPCI's 123PAY line using your own bank and UPI PIN. The app never sees your PIN.</p>
-  </div>
+    <section id="get">
+      <h2 class="big">Get it before you need it</h2>
+      <div class="cols">
+        <div>
+          <h3>Android app</h3>
+          <p>About 20 MB. Download the APK from the latest release, open it, and allow installs from your browser when Android asks. After that it never needs data.</p>
+          <p><a class="btn" href="https://github.com/Life-Experimentalist/ZeroMB/releases/latest">Download the APK</a></p>
+        </div>
+        <div>
+          <h3>Web app</h3>
+          <p>For iPhone, or if you would rather not install an APK. Open it once while you still have data, then add it to your home screen. iPhone: Share, then Add to Home Screen. Android: browser menu, then Install app.</p>
+          <p>The installed copy opens straight into the app and keeps working with no data.</p>
+          <p><a class="btn alt" href="app/">Open the web app</a></p>
+        </div>
+      </div>
+    </section>
 
-  <h2>Before you rely on it</h2>
-  <div class="card">
-    <p>The menu digits, pack prices and USSD codes can change and are not verified against a live call. The dial sequence is editable inside the app. Try a small pack first. Unofficial hobby tool, not affiliated with NPCI, Jio, Airtel, Vi or BSNL. Use at your own risk.</p>
-  </div>
+    <section id="how">
+      <h2 class="big">How it works</h2>
+      <div class="cols">
+        <div>
+          <p>Banks and NPCI run a voice line called 123PAY. You call it, it reads out a menu, and you press keys to pay. It works on any phone with no data, because it is only a call.</p>
+          <p>The hard part is pressing the right keys at the right moments while it talks. ZeroMB opens your dialer with those keys already typed in, with short pauses between them. You tap a pack, press the green call button, and type your UPI PIN when asked.</p>
+        </div>
+        <div>
+          <h3>Set up once, with data on</h3>
+          <ul class="plain">
+            <li>Save your 10 digit number and pick your operator.</li>
+            <li>Call 123PAY once from the app and say your bank name so it knows which account to use.</li>
+            <li>The language menu only plays on that first call. If it got set wrongly, the app has a Fix language button that presses # at the end of the menu, then 1, then the English key (3, Hindi is 2).</li>
+          </ul>
+          <p>If a key is wrong on your line, every key and the waiting speed can be edited inside the app.</p>
+        </div>
+      </div>
+    </section>
 
-  <footer><p>ZeroMB, open source. <a href="https://github.com/Life-Experimentalist/ZeroMB">GitHub</a></p></footer>
-</main>
+    <section id="packs">
+      <h2 class="big">Packs it knows</h2>
+      <p>The amount you pay is the pack. Pick one below in the app, or type any price. If the price is not a real pack for your operator, the recharge fails and the payment is refunded. Prices change, so check with your operator.</p>
+      <table class="packs">
+        <tr><th>Jio</th><td>&#8377;11, &#8377;15, &#8377;19, &#8377;29, &#8377;49</td></tr>
+        <tr><th>Airtel</th><td>&#8377;22, &#8377;26, &#8377;33, &#8377;49</td></tr>
+        <tr><th>Vi</th><td>&#8377;23, &#8377;26, &#8377;33, &#8377;49</td></tr>
+        <tr><th>BSNL</th><td>&#8377;16, &#8377;19, &#8377;49, &#8377;58</td></tr>
+      </table>
+    </section>
+
+    <section id="safe">
+      <h2 class="big">Is it safe</h2>
+      <div class="cols">
+        <div>
+          <ul class="plain">
+            <li>It asks for no permissions. It hands a phone number to your normal dialer, the same as tapping a number on a web page.</li>
+            <li>It stores your number, operator and packs on your phone only. Nothing is sent anywhere.</li>
+            <li>It never sees your UPI PIN. You type that into the call yourself.</li>
+          </ul>
+        </div>
+        <div>
+          <ul class="plain">
+            <li>It holds no money and is not a payment app. The payment is between your phone and NPCI.</li>
+            <li>Do not press keys during the call while the voice is talking. A key pressed at the wrong moment can pick the wrong option.</li>
+            <li>Some dialers ignore the pauses. If yours does, dial 080 4516 3666 by hand and use the keypad.</li>
+          </ul>
+        </div>
+      </div>
+      <p><a href="https://github.com/Life-Experimentalist/ZeroMB">Read the source on GitHub</a></p>
+    </section>
+  </main>
+
+  <footer>
+    <p>ZeroMB is an unofficial hobby tool. It is not affiliated with NPCI, Jio, Airtel, Vi or BSNL. Check each call before you enter a PIN, and use it at your own risk.</p>
+  </footer>
+</div>
 </body>
 </html>
