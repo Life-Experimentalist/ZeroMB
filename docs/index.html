@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZeroMB: recharge data with zero data</title>
+<meta name="description" content="Offline Android app that recharges a Jio, Airtel, Vi or BSNL data pack through UPI 123PAY when your mobile data has run out.">
+<style>
+  :root { --bg:#0b0f19; --card:#1e293b; --line:#334155; --text:#f8fafc; --mute:#94a3b8; --green:#4ade80; --blue:#38bdf8; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f8fafc; --card:#ffffff; --line:#e2e8f0; --text:#0f172a; --mute:#475569; --green:#15803d; --blue:#0369a1; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 56px 16px 64px; }
+  h1 { font-size: 2.4rem; margin: 0 0 8px; }
+  h2 { font-size: 1.2rem; margin: 40px 0 12px; }
+  p, li { color: var(--mute); }
+  .lead { font-size: 1.1rem; }
+  .btn { display:inline-block; background:var(--green); color:#04210f; font-weight:700; padding:12px 20px; border-radius:10px; text-decoration:none; margin:16px 8px 0 0; }
+  .btn.alt { background:transparent; color:var(--blue); border:1px solid var(--line); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 20px; margin:12px 0; }
+  code { background:var(--bg); border:1px solid var(--line); padding:2px 6px; border-radius:6px; font-size:.9em; color:var(--text); word-break:break-all; }
+  table { width:100%; border-collapse:collapse; font-size:.95rem; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); color:var(--mute); vertical-align:top; }
+  th { color:var(--text); }
+  a { color: var(--blue); }
+  footer { margin-top: 48px; font-size:.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ZeroMB</h1>
+  <p class="lead">Out of data? Recharge a data pack without any data. ZeroMB opens your dialer with the UPI 123PAY menu already typed in. You press call and enter your UPI PIN.</p>
+  <a class="btn" href="https://github.com/VKrishna04/ZeroMB/releases/latest">Download APK</a>
+  <a class="btn alt" href="https://github.com/VKrishna04/ZeroMB">Source on GitHub</a>
+
+  <h2>How to use it</h2>
+  <div class="card">
+    <ol>
+      <li>Open the app, enter your 10-digit number and pick your operator.</li>
+      <li>Tap "Call 123PAY to link your bank" once and say your bank's name, for example "SBI".</li>
+      <li>When data runs out, open the app and tap a pack, or type any pack price.</li>
+      <li>Press the green call button. When the voice asks for your UPI PIN, type it on the keypad.</li>
+    </ol>
+  </div>
+
+  <h2>Included packs</h2>
+  <div class="card">
+    <table>
+      <tr><th>Operator</th><th>Default packs (₹)</th><th>Backup</th></tr>
+      <tr><td>Jio</td><td>11, 15, 19, 29, 49</td><td>MyJio app or jio.com</td></tr>
+      <tr><td>Airtel</td><td>22, 26, 33, 49</td><td><code>*567*3#</code></td></tr>
+      <tr><td>Vi</td><td>23, 26, 33, 49</td><td><code>*111*6#</code></td></tr>
+      <tr><td>BSNL</td><td>16, 19, 49, 58</td><td><code>*124*2#</code></td></tr>
+    </table>
+    <p>The rupee amount is the plan ID, so you can add any new pack by its exact price. A price that is not a real pack is rejected and refunded.</p>
+  </div>
+
+  <h2>Privacy and permissions</h2>
+  <div class="card">
+    <p>The app asks for no Android permissions, has no internet access of its own, and has no account or server. Your number, operator and pack list stay on your phone. Payment goes directly between your phone and NPCI's 123PAY line using your own bank and UPI PIN. The app never sees your PIN.</p>
+  </div>
+
+  <h2>Before you rely on it</h2>
+  <div class="card">
+    <p>The menu digits, pack prices and USSD codes can change and are not verified against a live call. The dial sequence is editable inside the app. Try a small pack first. Unofficial hobby tool, not affiliated with NPCI, Jio, Airtel, Vi or BSNL. Use at your own risk.</p>
+  </div>
+
+  <footer><p>ZeroMB, open source. <a href="https://github.com/VKrishna04/ZeroMB">GitHub</a></p></footer>
+</main>
+</body>
+</html>
