@@ -169,6 +169,31 @@ export default function App() {
   const [pending, setPending] = useState<string | null>(null);
   const loaded = useRef(false);
   const [detected, setDetected] = useState(false);
+  const [installEvt, setInstallEvt] = useState<any>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onPrompt = (e: any) => {
+      e.preventDefault();
+      setInstallEvt(e);
+    };
+    const onInstalled = () => setInstallEvt(null);
+    window.addEventListener('beforeinstallprompt', onPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+
+  const installWeb = async () => {
+    if (!installEvt) return;
+    installEvt.prompt();
+    try {
+      await installEvt.userChoice;
+    } catch {}
+    setInstallEvt(null);
+  };
 
   const detectCarrier = async () => {
     if (Platform.OS !== 'android') return;
@@ -331,6 +356,11 @@ export default function App() {
         {Platform.OS === 'web' && !isInstalledWeb() && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Install this so it works with no data</Text>
+            {installEvt && (
+              <Pressable style={[styles.primaryBtn, { backgroundColor: accent, marginBottom: 10 }]} onPress={installWeb}>
+                <Text style={styles.primaryText}>Install app</Text>
+              </Pressable>
+            )}
             <Text style={styles.help}>
               iPhone: tap Share, then Add to Home Screen. Android: open the browser menu and tap Install app. Open it once
               while you still have data, after that it works offline.

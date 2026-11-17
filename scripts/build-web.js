@@ -9,6 +9,7 @@ fs.rmSync(out, { recursive: true, force: true });
 execSync(`npx expo export -p web --output-dir "${out}"`, { cwd: root, stdio: 'inherit' });
 
 fs.copyFileSync(path.join(root, 'assets', 'icon.png'), path.join(out, 'icon-512.png'));
+fs.copyFileSync(path.join(root, 'assets', 'icon-192.png'), path.join(out, 'icon-192.png'));
 
 fs.writeFileSync(
   path.join(out, 'manifest.webmanifest'),
@@ -24,6 +25,7 @@ fs.writeFileSync(
       background_color: '#0B0F19',
       theme_color: '#0B0F19',
       icons: [
+        { src: '/app/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
         { src: '/app/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
         { src: '/app/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ],
