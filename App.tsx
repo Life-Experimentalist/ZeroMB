@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as Cellular from 'expo-cellular';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const RS = '₹';
@@ -32,7 +33,6 @@ interface DataPlan {
 }
 
 interface Settings {
-  phone: string;
   carrier: Carrier;
   setupDone: boolean;
   langKey: string; // key that picks English in the first voice menu ('' to skip)
@@ -65,7 +65,6 @@ const WAITS: Record<Speed, [number, number, number, number, number]> = {
 const SPEED_LABEL: Record<Speed, string> = { fast: 'Fast', normal: 'Normal', slow: 'Slow' };
 
 const DEFAULT_SETTINGS: Settings = {
-  phone: '',
   carrier: 'JIO',
   setupDone: false,
   langKey: '3',
@@ -140,6 +139,15 @@ function isInstalledWeb(): boolean {
   return nav.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 }
 
+function carrierFromName(name: string | null): Carrier | null {
+  const n = (name || '').toLowerCase();
+  if (n.includes('jio')) return 'JIO';
+  if (n.includes('airtel')) return 'AIRTEL';
+  if (n.includes('bsnl') || n.includes('cellone')) return 'BSNL';
+  if (n === 'vi' || n.includes('vodafone') || n.includes('idea')) return 'VI';
+  return null;
+}
+
 async function dial(sequence: string) {
   // '#' must be percent-encoded in a tel: URI.
   try {
@@ -160,6 +168,20 @@ export default function App() {
   const [customLabel, setCustomLabel] = useState('');
   const [pending, setPending] = useState<string | null>(null);
   const loaded = useRef(false);
+  const [detected, setDetected] = useState(false);
+
+  const detectCarrier = async () => {
+    if (Platform.OS !== 'android') return;
+    try {
+      const c = carrierFromName(await Cellular.getCarrierNameAsync());
+      if (c) {
+        setS((prev) => ({ ...prev, carrier: c }));
+        setDetected(true);
+      }
+    } catch {
+      // leave the manual choice
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -174,7 +196,6 @@ export default function App() {
         if (a) {
           const p = JSON.parse(a);
           setS({
-            phone: typeof p.phone === 'string' ? p.phone : '',
             carrier: isCarrier(p.carrier) ? p.carrier : 'JIO',
             setupDone: p.setupDone === true,
             langKey: typeof p.langKey === 'string' ? digitsOnly(p.langKey) : DEFAULT_SETTINGS.langKey,
@@ -189,11 +210,11 @@ export default function App() {
           const p = JSON.parse(old);
           setS({
             ...DEFAULT_SETTINGS,
-            phone: typeof p.phone === 'string' ? p.phone : '',
             carrier: isCarrier(p.carrier) ? p.carrier : 'JIO',
             setupDone: p.setupDone === true,
           });
         }
+        if (!a && !old) detectCarrier();
         if (b) {
           const p = JSON.parse(b);
           if (Array.isArray(p) && p.every(isPlan)) setPlans(p);
@@ -218,17 +239,12 @@ export default function App() {
     if (loaded.current) AsyncStorage.setItem(KEY_PLANS, JSON.stringify(next)).catch(() => {});
   };
 
-  const phoneValid = /^[6-9]\d{9}$/.test(s.phone);
   const accent = CARRIER_COLOR[s.carrier];
   const carrierPlans = plans.filter((p) => p.carrier === s.carrier);
   const showSetup = !s.setupDone || editingProfile;
 
   const askRecharge = (rawAmount: string) => {
     const amount = cleanAmount(rawAmount);
-    if (!phoneValid) {
-      Alert.alert('Add your number', 'Enter your 10-digit mobile number first.');
-      return;
-    }
     if (!amount) {
       Alert.alert('Invalid amount', 'Enter the exact pack price in rupees.');
       return;
@@ -288,7 +304,7 @@ export default function App() {
       } catch {
         try {
           await Linking.openURL(
-            `https://www.jio.com/selfcare/recharge/mobility/?serviceId=${s.phone}&serviceType=mobility&next=PREPAID`
+            `https://www.jio.com/selfcare/recharge/mobility/`
           );
         } catch {
           Alert.alert('Could not open', 'Neither the MyJio app nor the Jio website could be opened.');
@@ -324,23 +340,10 @@ export default function App() {
 
         {showSetup ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>{s.setupDone ? 'Your details' : 'Set up in 3 steps'}</Text>
+            <Text style={styles.cardTitle}>{s.setupDone ? 'Your details' : 'Set up in 2 steps'}</Text>
 
-            <Text style={styles.step}>1. Your mobile number</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="number-pad"
-              maxLength={10}
-              placeholder="10-digit number"
-              placeholderTextColor="#64748B"
-              value={s.phone}
-              onChangeText={(v) => update({ phone: digitsOnly(v) })}
-            />
-            {s.phone.length === 10 && !phoneValid && (
-              <Text style={styles.warn}>Indian mobile numbers start with 6, 7, 8 or 9.</Text>
-            )}
-
-            <Text style={styles.step}>2. Your operator</Text>
+            <Text style={styles.step}>1. Your operator</Text>
+            {detected && <Text style={styles.help}>Picked from your SIM. Change it if that is wrong.</Text>}
             <View style={styles.row}>
               {CARRIERS.map((c) => (
                 <Pressable
@@ -353,7 +356,7 @@ export default function App() {
               ))}
             </View>
 
-            <Text style={styles.step}>3. Link your bank (once)</Text>
+            <Text style={styles.step}>2. Link your bank (once)</Text>
             <Text style={styles.help}>
               Call the NPCI line and say your bank's name, for example "SBI". Do this one time only.
             </Text>
@@ -362,8 +365,7 @@ export default function App() {
             </Pressable>
 
             <Pressable
-              style={[styles.primaryBtn, { backgroundColor: accent }, !phoneValid && styles.disabled]}
-              disabled={!phoneValid}
+              style={[styles.primaryBtn, { backgroundColor: accent }]}
               onPress={() => {
                 update({ setupDone: true });
                 setEditingProfile(false);
@@ -376,7 +378,7 @@ export default function App() {
           <Pressable style={styles.profile} onPress={() => setEditingProfile(true)}>
             <View style={[styles.dot, { backgroundColor: accent }]} />
             <Text style={styles.profileText}>
-              {s.phone} {DOT} {s.carrier}
+              {s.carrier}
             </Text>
             <Text style={styles.link}>Edit</Text>
           </Pressable>
@@ -573,7 +575,7 @@ export default function App() {
           <View style={styles.sheet}>
             <Text style={styles.sheetTitle}>
               Recharge {RS}
-              {pending} for {s.phone}?
+              {pending} on {s.carrier}?
             </Text>
             <Text style={styles.help}>
               1. The dialer opens with the menu keys typed in.{'\n'}

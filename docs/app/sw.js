@@ -1,4 +1,4 @@
-const CACHE = 'zeromb-1794937482549';
+const CACHE = 'zeromb-1794938659183';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
   e.waitUntil(
