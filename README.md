@@ -10,7 +10,7 @@ Site: https://zeromb.vkrishna04.me (once DNS is set up, see `docs/SETUP.md`)
 
 1. You pick your operator (the app suggests it from your SIM, no permission needed). It never asks for your number, the call reads that out itself.
 2. You tap a data pack, or type any pack price.
-3. The app opens the dialer with a string like `08045163666,,,2,,,1,,,9XXXXXXXXX#,,,22#`. Commas are short pauses, so the menu digits are sent for you.
+3. The app opens the dialer with a string like `08045163666,,,,,,,,3,,,1,,,,,1`. Commas are short pauses, so the menu digits are sent for you.
 4. You press the green call button. When the voice asks, type your UPI PIN on the keypad.
 
 The rupee amount is the plan ID in Indian recharge systems, so adding a custom pack only needs its exact price. If the price is not a real pack for your operator, the recharge is rejected and the UPI payment is refunded.
