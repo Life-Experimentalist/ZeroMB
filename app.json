@@ -1,7 +1,7 @@
-{
+﻿{
   "expo": {
-    "name": "OfflineDataTopup",
-    "slug": "OfflineDataTopup",
+    "name": "ZeroMB",
+    "slug": "zeromb",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -9,10 +9,10 @@
     "backgroundColor": "#0B0F19",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.local.offlinedatatopup"
+      "bundleIdentifier": "com.lifeexperimentalist.zeromb"
     },
     "android": {
-      "package": "com.local.offlinedatatopup",
+      "package": "com.lifeexperimentalist.zeromb",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -57,9 +57,9 @@ const USSD_BACKUP: Record<Exclude<Carrier, 'JIO'>, { code: string; label: string
   BSNL: { code: '*124*2#', label: 'BSNL data STV menu' },
 };
 
-const KEY_USER = '@OFFLINE_TOPUP_USER_V1';
-const KEY_PLANS = '@OFFLINE_TOPUP_PLANS_V1';
-const KEY_TEMPLATE = '@OFFLINE_TOPUP_TEMPLATE_V1';
+const KEY_USER = '@ZEROMB_USER_V1';
+const KEY_PLANS = '@ZEROMB_PLANS_V1';
+const KEY_TEMPLATE = '@ZEROMB_TEMPLATE_V1';
 
 const isCarrier = (v: unknown): v is Carrier => CARRIERS.includes(v as Carrier);
 
@@ -166,7 +166,7 @@ export default function App() {
       return;
     }
     if (plans.some((p) => p.carrier === carrier && p.amount === amount)) {
-      Alert.alert('Already saved', `A ₹${amount} pack already exists for ${carrier}.`);
+      Alert.alert('Already saved', `A â‚¹${amount} pack already exists for ${carrier}.`);
       return;
     }
     updatePlans([
@@ -184,7 +184,7 @@ export default function App() {
   };
 
   const deletePlan = (plan: DataPlan) => {
-    Alert.alert('Remove pack', `Remove ₹${plan.amount} ${plan.label}?`, [
+    Alert.alert('Remove pack', `Remove â‚¹${plan.amount} ${plan.label}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -238,7 +238,7 @@ export default function App() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Offline Data Top-Up</Text>
+        <Text style={styles.title}>ZeroMB</Text>
         <Text style={styles.subtitle}>Recharge a data pack with zero internet, using UPI 123PAY</Text>
 
         <View style={styles.card}>
@@ -304,10 +304,10 @@ export default function App() {
                   <Text style={styles.planLabel}>{plan.label}</Text>
                   {plan.isCustom && <Text style={styles.planMeta}>Custom</Text>}
                 </View>
-                <Text style={styles.planAmount}>₹{plan.amount}</Text>
+                <Text style={styles.planAmount}>â‚¹{plan.amount}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.deleteBtn} onPress={() => deletePlan(plan)}>
-                <Text style={styles.deleteText}>✕</Text>
+                <Text style={styles.deleteText}>âœ•</Text>
               </TouchableOpacity>
             </View>
           ))}
@@ -318,7 +318,7 @@ export default function App() {
               <TextInput
                 style={[styles.input, styles.flex1]}
                 keyboardType="number-pad"
-                placeholder="₹ Price"
+                placeholder="â‚¹ Price"
                 placeholderTextColor="#64748B"
                 value={customAmount}
                 onChangeText={(v) => setCustomAmount(cleanAmount(v))}
@@ -340,7 +340,7 @@ export default function App() {
                   style={[styles.primaryBtn, styles.flex1]}
                   onPress={() => recharge(customAmount)}
                 >
-                  <Text style={styles.primaryBtnText}>Recharge ₹{customAmount}</Text>
+                  <Text style={styles.primaryBtnText}>Recharge â‚¹{customAmount}</Text>
                 </TouchableOpacity>
               )}
             </View>
